@@ -17,6 +17,8 @@ API 키 넣는 법 (택 1):
     -d '{"message":"한 문장으로 자기소개 해줘"}'
 
 문서 UI: http://127.0.0.1:8000/docs
+
+프롬프트: prompts.py 수정 (system 기본값). /docs 에서 system 생략 시 적용됨.
 """
 
 import os
@@ -26,6 +28,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from openai import APIError, APIConnectionError, AuthenticationError, OpenAI, RateLimitError
 from pydantic import BaseModel, Field
+
+from prompts import DEFAULT_SYSTEM
 
 _ROOT = Path(__file__).resolve().parent
 # 기본은 `.env`만 읽음. 같은 폴더의 `openAI_API_key.env`도 읽도록 함 (이미 설정된 변수는 덮어쓰지 않음).
@@ -41,7 +45,7 @@ class GptRequest(BaseModel):
     message: str = Field(..., min_length=1, description="사용자 말(프롬프트)")
     system: str | None = Field(
         None,
-        description="선택. 없으면 짧은 한국어 도우미 역할만 지정",
+        description="선택. 없으면 prompts.py 의 DEFAULT_SYSTEM 사용",
     )
     model: str | None = Field(
         None, description="비우면 환경변수 OPENAI_MODEL 또는 gpt-5.5"
@@ -76,7 +80,7 @@ def health() -> dict[str, str | bool]:
 def gpt(req: GptRequest) -> GptResponse:
     """OpenAI Chat Completions로 한 번 물어보고 답만 돌려줍니다."""
     model = req.model or DEFAULT_MODEL
-    system = req.system or "당신은 간결하고 정확하게 한국어로 답하는 도우미입니다."
+    system = req.system or DEFAULT_SYSTEM
 
     client = _client()
     try:
