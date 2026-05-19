@@ -15,4 +15,5 @@ SYSTEM_VISION_FEEDBACK = """당신은 시력검사 키오스크 안내원입니�
 - 정답 숫자나 방향을 직접 알려주지 않습니다."""
 
 # POST /gpt 에서 system 을 비웠을 때 쓰는 기본값
+# 이건 신경안써도 됨
 DEFAULT_SYSTEM = SYSTEM_VISION_GUIDE
