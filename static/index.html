@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CD401 · 시력검사 음성 대화</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 2rem 1rem;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; color: #38bdf8; }
+  .subtitle { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; }
+
+  .answer-sheet {
+    width: 100%; max-width: 520px; margin-bottom: 1.5rem;
+    background: #1e293b; border-radius: 12px; padding: 1rem;
+  }
+  .answer-sheet label { font-size: 0.9rem; color: #94a3b8; display: block; margin-bottom: 0.5rem; }
+  .answer-sheet input {
+    width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px;
+    border: 2px solid #475569; background: #0f172a; color: #f1f5f9;
+    font-size: 1rem; outline: none;
+  }
+  .answer-sheet input:focus { border-color: #38bdf8; }
+  .answer-sheet .hint { font-size: 0.75rem; color: #64748b; margin-top: 0.4rem; }
+
+  .progress-area {
+    width: 100%; max-width: 520px; margin-bottom: 1rem; display: none;
+  }
+  .progress-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.4rem;
+  }
+  .progress-header .round { font-size: 1.1rem; font-weight: 700; color: #38bdf8; }
+  .progress-bar {
+    width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden;
+  }
+  .progress-bar .fill {
+    height: 100%; background: #38bdf8; border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+
+  .indicator {
+    width: 160px; height: 160px; border-radius: 50%;
+    border: 4px solid #334155; background: #1e293b;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 0.25rem;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .indicator.listening { border-color: #22c55e; }
+  .indicator.recording { border-color: #ef4444; background: #7f1d1d; animation: pulse 1s infinite; }
+  .indicator.processing { border-color: #f59e0b; }
+  .indicator.speaking { border-color: #8b5cf6; background: #2e1065; }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  .indicator .icon { font-size: 2.5rem; }
+  .indicator .label { font-size: 0.75rem; color: #94a3b8; }
+
+  .result-badge {
+    margin-top: 1rem; padding: 0.4rem 1.5rem; border-radius: 20px;
+    font-size: 1.2rem; font-weight: 700; min-height: 2.2rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .result-badge.pass { background: #166534; color: #4ade80; }
+  .result-badge.fail { background: #7f1d1d; color: #fca5a5; }
+  .result-badge.hidden { visibility: hidden; }
+
+  .volume-bar {
+    width: 120px; height: 6px; background: #334155; border-radius: 3px;
+    margin-top: 0.75rem; overflow: hidden;
+  }
+  .volume-bar .fill { height: 100%; background: #22c55e; border-radius: 3px; transition: width 0.05s; width: 0%; }
+
+  .controls { margin-top: 1rem; display: flex; gap: 0.75rem; }
+  .controls button {
+    padding: 0.5rem 1.25rem; border-radius: 8px; border: 1px solid #475569;
+    background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 0.85rem;
+  }
+  .controls button:hover { border-color: #38bdf8; }
+
+  .status { margin-top: 0.75rem; font-size: 0.85rem; color: #94a3b8; min-height: 1.4em; text-align: center; }
+
+  .settings {
+    margin-top: 0.75rem; font-size: 0.75rem; color: #64748b;
+    display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; justify-content: center;
+  }
+  .settings label { display: flex; align-items: center; gap: 0.3rem; }
+  .settings input[type=range] { width: 80px; }
+
+  .chat {
+    margin-top: 1.5rem; width: 100%; max-width: 520px;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    max-height: 30vh; overflow-y: auto;
+  }
+  .bubble {
+    padding: 0.75rem 1rem; border-radius: 12px;
+    max-width: 85%; line-height: 1.5; font-size: 0.95rem;
+    word-break: keep-all;
+  }
+  .bubble.user { align-self: flex-end; background: #1e40af; color: #dbeafe; }
+  .bubble.assistant { align-self: flex-start; background: #334155; color: #f1f5f9; }
+  .bubble.pass { border-left: 4px solid #4ade80; }
+  .bubble.fail { border-left: 4px solid #f87171; }
+  .bubble .lbl { font-size: 0.7rem; color: #94a3b8; margin-bottom: 0.25rem; }
+  .bubble .meta { font-size: 0.7rem; color: #64748b; margin-top: 0.3rem; }
+
+  .summary {
+    display: none; width: 100%; max-width: 520px; margin-top: 1.5rem;
+    background: #1e293b; border-radius: 12px; padding: 1.25rem;
+  }
+  .summary h2 { font-size: 1.1rem; color: #38bdf8; margin-bottom: 0.75rem; }
+  .summary .score {
+    font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 1rem;
+  }
+  .summary .score.good { color: #4ade80; }
+  .summary .score.bad { color: #fca5a5; }
+  .summary table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .summary th {
+    text-align: left; padding: 0.4rem 0.5rem; color: #94a3b8;
+    border-bottom: 1px solid #334155;
+  }
+  .summary td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #0f172a; }
+  .summary .retry-btn {
+    margin-top: 1rem; width: 100%; padding: 0.6rem; border-radius: 8px;
+    border: 1px solid #475569; background: #0f172a; color: #38bdf8;
+    cursor: pointer; font-size: 0.9rem;
+  }
+  .summary .retry-btn:hover { border-color: #38bdf8; }
+</style>
+</head>
+<body>
+
+<h1>시력검사 음성 대화</h1>
+<p class="subtitle">답지를 입력하고 시작하면 자동으로 진행합니다</p>
+
+<div class="answer-sheet" id="answerSheet">
+  <label for="answersInput">답지 입력 (쉼표로 구분, 최대 10개)</label>
+  <input type="text" id="answersInput" placeholder="예: 3, UP, 7, LEFT, 5" maxlength="100">
+  <div class="hint">숫자(0-9) 또는 방향(UP, DOWN, LEFT, RIGHT)</div>
+</div>
+
+<div class="progress-area" id="progressArea">
+  <div class="progress-header">
+    <span class="round" id="roundLabel">1 / 5</span>
+    <span id="progressScore">0 맞음</span>
+  </div>
+  <div class="progress-bar"><div class="fill" id="progressFill" style="width:0%"></div></div>
+</div>
+
+<div class="indicator" id="indicator">
+  <span class="icon" id="icon">⏸</span>
+  <span class="label" id="indicatorLabel">대기</span>
+</div>
+
+<div class="result-badge hidden" id="resultBadge">—</div>
+
+<div class="volume-bar"><div class="fill" id="volumeFill"></div></div>
+
+<div class="controls">
+  <button id="startBtn">▶ 검사 시작</button>
+  <button id="stopBtn" style="display:none">■ 중지</button>
+</div>
+
+<div class="status" id="status">답지를 입력한 뒤 시작하세요</div>
+
+<div class="settings">
+  <label>감도 <input type="range" id="threshold" min="1" max="30" value="8"> <span id="thresholdVal">8</span></label>
+  <label>묵음 대기 <input type="range" id="silenceMs" min="500" max="3000" step="100" value="2000"> <span id="silenceVal">2.0s</span></label>
+</div>
+
+<div class="chat" id="chat"></div>
+
+<div class="summary" id="summary">
+  <h2>검사 결과</h2>
+  <div class="score" id="scoreText">—</div>
+  <table>
+    <thead><tr><th>#</th><th>정답</th><th>응답</th><th>결과</th></tr></thead>
+    <tbody id="summaryBody"></tbody>
+  </table>
+  <button type="button" class="retry-btn" id="retryBtn">🔄 다시 검사</button>
+</div>
+
+<script>
+const API_BASE = location.origin;
+const MAX_ROUNDS = 10;
+
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const statusEl = document.getElementById("status");
+const chatEl = document.getElementById("chat");
+const indicator = document.getElementById("indicator");
+const iconEl = document.getElementById("icon");
+const indicatorLabel = document.getElementById("indicatorLabel");
+const volumeFill = document.getElementById("volumeFill");
+const resultBadge = document.getElementById("resultBadge");
+const answersInput = document.getElementById("answersInput");
+const answerSheet = document.getElementById("answerSheet");
+const progressArea = document.getElementById("progressArea");
+const roundLabel = document.getElementById("roundLabel");
+const progressScore = document.getElementById("progressScore");
+const progressFill = document.getElementById("progressFill");
+const summaryEl = document.getElementById("summary");
+const scoreText = document.getElementById("scoreText");
+const summaryBody = document.getElementById("summaryBody");
+const retryBtn = document.getElementById("retryBtn");
+const thresholdInput = document.getElementById("threshold");
+const thresholdVal = document.getElementById("thresholdVal");
+const silenceMsInput = document.getElementById("silenceMs");
+const silenceVal = document.getElementById("silenceVal");
+
+let stream = null, audioCtx = null, analyser = null;
+let mediaRecorder = null, chunks = [];
+let active = false, animFrame = null;
+let THRESHOLD = 8, SILENCE_MS = 2000;
+
+let answers = [];
+let currentRound = 0;
+let results = [];
+
+thresholdInput.oninput = () => { THRESHOLD = +thresholdInput.value; thresholdVal.textContent = THRESHOLD; };
+silenceMsInput.oninput = () => { SILENCE_MS = +silenceMsInput.value; silenceVal.textContent = (SILENCE_MS/1000).toFixed(1)+"s"; };
+
+function setState(name, emoji, label) {
+  indicator.className = "indicator " + name;
+  iconEl.textContent = emoji;
+  indicatorLabel.textContent = label;
+}
+function setStatus(msg) { statusEl.textContent = msg; }
+
+function showResult(correct) {
+  resultBadge.className = "result-badge " + (correct ? "pass" : "fail");
+  resultBadge.textContent = correct ? "✅ PASS" : "❌ FAIL";
+}
+function hideResult() {
+  resultBadge.className = "result-badge hidden";
+  resultBadge.textContent = "—";
+}
+
+function updateProgress() {
+  const total = answers.length;
+  const done = currentRound;
+  const correct = results.filter(r => r.correct).length;
+  const current = Math.min(done + 1, total);
+  roundLabel.textContent = `${current} / ${total}`;
+  progressScore.textContent = `${correct} 맞음`;
+  progressFill.style.width = total ? (done / total * 100) + "%" : "0%";
+}
+
+function parseAnswers(input) {
+  return input
+    .split(/[,，\s]+/)
+    .map(s => s.trim().toUpperCase())
+    .filter(s => s.length > 0)
+    .slice(0, MAX_ROUNDS);
+}
+
+function addBubble(role, text, extra) {
+  const div = document.createElement("div");
+  let cls = `bubble ${role}`;
+  if (extra && extra.correct === true) cls += " pass";
+  if (extra && extra.correct === false) cls += " fail";
+  div.className = cls;
+
+  const lbl = document.createElement("div");
+  lbl.className = "lbl";
+  lbl.textContent = role === "user" ? "나 (STT)" : "GPT";
+  div.appendChild(lbl);
+  div.appendChild(document.createTextNode(text));
+
+  if (extra) {
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const parts = [];
+    if (extra.round != null) parts.push(`#${extra.round}`);
+    if (extra.interpreted) parts.push(`해석: ${extra.interpreted}`);
+    if (extra.expected) parts.push(`정답: ${extra.expected}`);
+    if (extra.correct !== null && extra.correct !== undefined) {
+      parts.push(extra.correct ? "PASS ✅" : "FAIL ❌");
+    }
+    meta.textContent = parts.join(" · ");
+    div.appendChild(meta);
+  }
+
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function playBase64Audio(b64) {
+  return new Promise((resolve) => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: "audio/mpeg" });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+    audio.play().catch(() => resolve());
+  });
+}
+
+function getVolume() {
+  const data = new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(data);
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    const v = (data[i] - 128) / 128;
+    sum += v * v;
+  }
+  return Math.sqrt(sum / data.length) * 100;
+}
+
+function showSummary() {
+  const total = results.length;
+  const correct = results.filter(r => r.correct).length;
+
+  scoreText.textContent = `${correct} / ${total}`;
+  scoreText.className = "score " + (total > 0 && correct / total >= 0.5 ? "good" : "bad");
+
+  summaryBody.innerHTML = "";
+  results.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${r.expected}</td>
+      <td>${r.interpreted}</td>
+      <td>${r.correct ? "✅" : "❌"}</td>
+    `;
+    summaryBody.appendChild(tr);
+  });
+
+  summaryEl.style.display = "block";
+}
+
+function stopMic() {
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  cancelAnimationFrame(animFrame);
+  volumeFill.style.width = "0%";
+}
+
+async function sendAudio(blob) {
+  if (currentRound >= answers.length) return;
+
+  const expected = answers[currentRound];
+  const roundNum = currentRound + 1;
+
+  setState("processing", "⏳", "처리 중...");
+  setStatus(`#${roundNum} 판정 중... (정답: ${expected})`);
+  hideResult();
+
+  const form = new FormData();
+  form.append("file", blob, "recording.webm");
+  form.append("language", "ko");
+  form.append("expected", expected);
+
+  try {
+    const res = await fetch(`${API_BASE}/voice`, { method: "POST", body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail = err.detail;
+      const msg = typeof detail === "string" ? detail : JSON.stringify(detail) || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    const data = await res.json();
+
+    results.push({
+      round: roundNum,
+      expected: data.expected || expected,
+      interpreted: data.interpreted,
+      correct: !!data.correct,
+      transcript: data.transcript,
+      reply: data.reply,
+    });
+
+    addBubble("user", data.transcript, {
+      round: roundNum,
+      interpreted: data.interpreted,
+      expected: data.expected,
+      correct: data.correct,
+    });
+    addBubble("assistant", data.reply, { correct: data.correct });
+
+    if (data.correct !== null && data.correct !== undefined) {
+      showResult(data.correct);
+    }
+
+    setState("speaking", "🔊", "답변 중");
+    setStatus(`#${roundNum}: ${data.reply}`);
+    await playBase64Audio(data.audio_base64);
+
+    currentRound++;
+    updateProgress();
+
+    if (currentRound >= answers.length) {
+      finishTest();
+      return;
+    }
+
+  } catch (e) {
+    setStatus(`오류 (#${roundNum}): ${e.message}`);
+    await new Promise(r => setTimeout(r, 2500));
+  }
+}
+
+function finishTest() {
+  active = false;
+  stopMic();
+
+  setState("", "🏁", "완료");
+  const correct = results.filter(r => r.correct).length;
+  setStatus(`검사 완료! ${correct} / ${answers.length} 맞음`);
+  hideResult();
+
+  stopBtn.style.display = "none";
+  startBtn.style.display = "";
+  startBtn.textContent = "▶ 다시 검사";
+
+  showSummary();
+}
+
+function listenLoop() {
+  if (!active || currentRound >= answers.length) return;
+
+  const roundNum = currentRound + 1;
+  setState("listening", "👂", "듣는 중");
+  setStatus(`#${roundNum} / ${answers.length} — 말씀하세요...`);
+  hideResult();
+
+  chunks = [];
+  let recording = false, silenceStart = null;
+
+  mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+  mediaRecorder.ondataavailable = (ev) => { if (ev.data.size > 0) chunks.push(ev.data); };
+  mediaRecorder.onstop = async () => {
+    cancelAnimationFrame(animFrame);
+    const blob = new Blob(chunks, { type: "audio/webm" });
+    if (blob.size > 0 && recording) await sendAudio(blob);
+    if (active && currentRound < answers.length) listenLoop();
+  };
+  mediaRecorder.start(250);
+
+  function tick() {
+    if (!active || !mediaRecorder || mediaRecorder.state !== "recording") return;
+    const vol = getVolume();
+    volumeFill.style.width = Math.min(vol * 5, 100) + "%";
+
+    if (vol > THRESHOLD) {
+      if (!recording) {
+        recording = true;
+        setState("recording", "🔴", "녹음 중");
+        setStatus(`#${roundNum} 녹음 중 — 잠잠해지면 자동 전송`);
+      }
+      silenceStart = null;
+    } else if (recording) {
+      if (!silenceStart) silenceStart = Date.now();
+      else if (Date.now() - silenceStart > SILENCE_MS) {
+        mediaRecorder.stop();
+        return;
+      }
+    }
+    animFrame = requestAnimationFrame(tick);
+  }
+  animFrame = requestAnimationFrame(tick);
+}
+
+startBtn.onclick = async () => {
+  const parsed = parseAnswers(answersInput.value);
+  if (parsed.length === 0) {
+    setStatus("답지를 입력하세요 (예: 3, UP, 7, LEFT, 5)");
+    answersInput.focus();
+    return;
+  }
+
+  answers = parsed;
+  currentRound = 0;
+  results = [];
+  chatEl.innerHTML = "";
+  summaryEl.style.display = "none";
+
+  answerSheet.style.display = "none";
+  progressArea.style.display = "block";
+  updateProgress();
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    setStatus("마이크 권한이 필요합니다");
+    answerSheet.style.display = "block";
+    progressArea.style.display = "none";
+    return;
+  }
+
+  audioCtx = new AudioContext();
+  const source = audioCtx.createMediaStreamSource(stream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+
+  active = true;
+  startBtn.style.display = "none";
+  stopBtn.style.display = "";
+  listenLoop();
+};
+
+stopBtn.onclick = () => {
+  active = false;
+  stopMic();
+  setState("", "⏸", "대기");
+  setStatus(results.length ? "중지됨 — 아래 결과 확인" : "중지됨");
+  hideResult();
+  startBtn.style.display = "";
+  startBtn.textContent = "▶ 검사 시작";
+  stopBtn.style.display = "none";
+  answerSheet.style.display = "block";
+  progressArea.style.display = "none";
+  if (results.length > 0) showSummary();
+};
+
+retryBtn.onclick = () => {
+  summaryEl.style.display = "none";
+  answerSheet.style.display = "block";
+  progressArea.style.display = "none";
+  chatEl.innerHTML = "";
+  currentRound = 0;
+  results = [];
+  answers = [];
+  setState("", "⏸", "대기");
+  setStatus("답지를 입력한 뒤 시작하세요");
+  startBtn.textContent = "▶ 검사 시작";
+  hideResult();
+};
+</script>
+</body>
+</html>
