@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 시력 검사 키오스크</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --text-main: #ffffff;
+            --text-sub: #a0a0a0;
+            --box-bg: #ffffff;
+            --box-text: #000000;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0; 
+            font-family: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            touch-action: none;
+        }
+
+        /* 스마트폰 화면 컨테이너 */
+        #app-container {
+            width: 100%;
+            max-width: 400px;
+            height: 100vh;
+            max-height: 800px;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border-radius: 0; /* PC 테스트시 보기 편하게 */
+            overflow: hidden;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            z-index: 5;
+        }
+
+        .close-btn {
+            position: absolute;
+            left: 20px;
+            background: none;
+            border: none;
+            color: var(--text-main);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* 눈 가리기 애니메이션 영역 */
+        #intro-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+            z-index: 50;
+            text-align: center;
+        }
+
+        .eye-container {
+            display: flex;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .eye {
+            width: 80px; height: 50px;
+            border: 4px solid var(--text-main);
+            border-radius: 50%;
+            position: relative;
+            background: white;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .pupil {
+            width: 20px; height: 20px;
+            background: #333;
+            border-radius: 50%;
+        }
+
+        .cover-hand {
+            position: absolute;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            color: white; font-size: 13px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .eye.covered .cover-hand {
+            opacity: 1;
+        }
+
+        .blink {
+            animation: pulse-border 1.5s infinite;
+        }
+        @keyframes pulse-border {
+            0% { border-color: var(--text-main); }
+            50% { border-color: #3b82f6; box-shadow: 0 0 15px #3b82f6; }
+            100% { border-color: var(--text-main); }
+        }
+
+        /* 검사 화면 영역 */
+        #test-container {
+            display: none;
+            flex-direction: column;
+            flex-grow: 1;
+            position: relative;
+        }
+
+        #status-monitor {
+            position: absolute;
+            top: -50px;
+            right: 20px;
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            z-index: 15;
+            background: var(--bg-color);
+            padding: 5px;
+        }
+
+        .instruction {
+            text-align: center;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin: 20px 0;
+            color: #dddddd;
+            z-index: 5;
+            min-height: 50px; /* 피드백 공간 확보 */
+        }
+
+        .target-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+            margin-bottom: 20px;
+            z-index: 5;
+        }
+
+        .target-box {
+            width: 280px;
+            height: 280px;
+            background-color: var(--box-bg);
+            border-radius: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+
+        #symbol {
+            color: var(--box-text);
+            font-weight: 900;
+            font-family: 'Arial Black', Impact, sans-serif;
+            line-height: 1;
+            display: inline-block;
+            transition: font-size 0.2s ease;
+        }
+
+        #stt-ui {
+            text-align: center;
+            margin-bottom: 30px;
+            z-index: 30;
+        }
+
+        #stt-btn {
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 25px;
+            border: none;
+            background-color: #3b82f6;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+            transition: background-color 0.2s;
+        }
+
+        /* 최종 결과 화면 */
+        #result {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+            text-align: center;
+            font-size: 1.2rem;
+            line-height: 1.6;
+        }
+
+        #result .score {
+            font-size: 2.5rem;
+            color: #3b82f6;
+            margin-top: 5px;
+            margin-bottom: 20px;
+            display: block;
+            font-weight: bold;
+        }
+
+        /* 하단 로고 */
+        footer {
+            padding: 20px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 1.2rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            z-index: 5;
+        }
+        
+        .logo-icon {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            position: relative;
+        }
+        .logo-icon::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 5px;
+            border-bottom: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 0 0 10px 10px;
+        }
+
+        /* Arduino BLE controller panel */
+        #arduino-panel {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            padding: 0 18px 10px;
+            z-index: 40;
+        }
+
+        .controller-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        #connect-arduino-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 999px;
+            background: #2563eb;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #arduino-status,
+        #button-status,
+        #volume-status {
+            font-size: 0.78rem;
+            color: var(--text-sub);
+            min-height: 18px;
+        }
+
+        .hw-test-btn {
+            width: 36px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.08);
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .hw-test-btn.active {
+            transform: scale(1.08);
+            background: #3b82f6;
+            border-color: #93c5fd;
+        }
+
+        #staff-call-banner {
+            display: none;
+            position: absolute;
+            left: 18px;
+            right: 18px;
+            top: 82px;
+            padding: 14px;
+            border-radius: 14px;
+            background: #fff3cd;
+            color: #111827;
+            border: 2px solid #f59e0b;
+            font-weight: 900;
+            text-align: center;
+            z-index: 100;
+        }
+
+
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <header>
+        <button class="close-btn" onclick="location.reload()">↻</button>
+        <h1>AI 시력 검사</h1>
+    </header>
+
+    <div id="arduino-panel">
+        <div class="controller-row">
+            <button id="connect-arduino-btn" type="button">Arduino 연결</button>
+            <span id="arduino-status">Not connected</span>
+        </div>
+        <div class="controller-row" aria-label="Hardware button test buttons">
+            <button class="hw-test-btn" id="hw-btn-1" type="button">1</button>
+            <button class="hw-test-btn" id="hw-btn-2" type="button">2</button>
+            <button class="hw-test-btn" id="hw-btn-3" type="button">3</button>
+            <button class="hw-test-btn" id="hw-btn-4" type="button">4</button>
+            <button class="hw-test-btn" id="hw-btn-5" type="button">5</button>
+        </div>
+        <div class="controller-row">
+            <span id="button-status">버튼 대기 중</span>
+            <span id="volume-status">음량 80%</span>
+        </div>
+    </div>
+
+    <div id="staff-call-banner">직원을 호출했습니다.</div>
+
+
+    <!-- 눈 가리기 안내 및 시작 화면 -->
+    <div id="intro-container">
+        <h2 id="intro-title" style="font-size: 1.5rem; margin-bottom: 10px;">1단계: 좌안 검사</h2>
+        <p id="intro-desc" style="font-size: 1rem; color: var(--text-sub); padding: 0 20px; margin: 0;">오른쪽 눈을 가려주세요.</p>
+        <div class="eye-container">
+            <div id="eye-left" class="eye"><div class="pupil"></div><div class="cover-hand">가려주세요</div></div>
+            <div id="eye-right" class="eye"><div class="pupil"></div><div class="cover-hand">가려주세요</div></div>
+        </div>
+        <button onclick="startEyeTest()" style="padding: 12px 30px; font-size: 18px; font-weight: bold; background: #3b82f6; color:white; border:none; border-radius: 20px; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            진행하기
+        </button>
+    </div>
+
+    <!-- 검사 진행 화면 -->
+    <div id="test-container">
+        <div id="status-monitor" style="display: none;">목표: <span id="info-stage">0.5</span> | 정답:<span id="info-corrects">0</span>/2 | 오답:<span id="info-fails">0</span>/2</div>
+        
+        <!-- 진행 현황 표시 추가 -->
+        <div id="progress-display" style="display: flex; justify-content: space-evenly; align-items: center; margin: 15px 20px 0; background: #222; padding: 12px 10px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+            <div style="text-align: center; width: 45%;">
+                <div style="font-size: 0.85rem; color: #a0a0a0; margin-bottom: 4px;">현재 검사 눈</div>
+                <div id="progress-eye" style="font-size: 1.1rem; font-weight: bold; color: #3b82f6;">좌안</div>
+            </div>
+            <div style="width: 1px; height: 35px; background: #444;"></div>
+            <div style="text-align: center; width: 45%;">
+                <div style="font-size: 0.85rem; color: #a0a0a0; margin-bottom: 4px;">측정 시력</div>
+                <div id="progress-stage" style="font-size: 1.25rem; font-weight: bold; color: #10b981;">0.5</div>
+            </div>
+        </div>
+
+        <p class="instruction" id="stt-feedback">
+            화면에 보이는 기호를 <b style="color:#3b82f6;">음성</b>으로 말씀해 주세요<br>
+            <span style="font-size: 0.95rem; color: #ffeb3b; line-height: 1.5; display: inline-block; margin-top: 15px;">
+                ▶ 숫자는 <b>"~번"</b> (예: "5번")<br>
+                ▶ C기호는 <b>뚫린 방향</b> (예: "오른쪽")
+            </span>
+        </p>
+
+        <div class="target-container">
+            <div class="target-box">
+                <span id="symbol"></span>
+            </div>
+        </div>
+
+        <div id="stt-ui">
+            <button id="stt-btn" onclick="startSTT()">
+                🎤 마이크로 말하기
+            </button>
+            <div id="stt-status" style="margin-top: 10px; font-size: 0.9rem; color: var(--text-sub);"></div>
+        </div>
+    </div>
+
+    <!-- 최종 결과 화면 -->
+    <div id="result">
+        <div style="font-size: 1.5rem; margin-bottom: 10px; font-weight: 800;">총 검사 완료</div>
+        <div>좌안 (왼쪽) 시력</div>
+        <span id="result-left" class="score">-</span>
+        <div>우안 (오른쪽) 시력</div>
+        <span id="result-right" class="score">-</span>
+    </div>
+
+    <footer>
+        <div class="logo-icon"></div> NENOON
+    </footer>
+</div>
+
+<script>
+    // 8단계 시력 설정
+    const acuityLevels = [0.1, 0.3, 0.4, 0.5, 0.7, 0.9, 1.0, 1.2];
+    const fontSizes = [8.5, 6, 4.5, 3.5, 2.5, 1.5, 1.0, 0.6]; // 스마트폰 박스 기준 rem 단위 최적화
+
+    const START_INDEX = 3; // 0.5부터 시작
+
+    let currentEye = 'left'; 
+    let leftAcuityResult = '';
+    let rightAcuityResult = '';
+
+    let currentStageIndex = START_INDEX;
+    let correctCount = 0;
+    let failCount = 0;
+    let isFirstStage = true;
+    let direction = 0; 
+    let lastSymbol = null;
+    let isFinished = false;
+    let consecutiveRetries = 0;
+    let isPaused = false;
+    let isListening = false;
+    let ttsVolume = 0.8;
+    let audioContext = null;
+    let gainNode = null;
+    let currentUtterance = null;
+
+    const introContainer = document.getElementById('intro-container');
+    const testContainer = document.getElementById('test-container');
+    const symbolDiv = document.getElementById('symbol');
+    const resultDiv = document.getElementById('result');
+    const infoStage = document.getElementById('info-stage');
+    const infoCorrects = document.getElementById('info-corrects');
+    const infoFails = document.getElementById('info-fails');
+
+    const connectArduinoBtn = document.getElementById('connect-arduino-btn');
+    const arduinoStatus = document.getElementById('arduino-status');
+    const buttonStatus = document.getElementById('button-status');
+    const volumeStatus = document.getElementById('volume-status');
+    const staffCallBanner = document.getElementById('staff-call-banner');
+    const hwButtons = {
+        1: document.getElementById('hw-btn-1'),
+        2: document.getElementById('hw-btn-2'),
+        3: document.getElementById('hw-btn-3'),
+        4: document.getElementById('hw-btn-4'),
+        5: document.getElementById('hw-btn-5')
+    };
+
+    // TTS 함수
+    // 사이트 안내 음성의 음량은 새로 재생되는 SpeechSynthesisUtterance마다 volume을 지정해야 반영된다.
+    // 이미 재생 중인 문장의 중간 음량은 브라우저가 직접 바꿀 수 없어서, 음량 버튼을 누르면 현재 안내를 멈추고 새 음량으로 짧게 안내한다.
+    function speak(text, onEndCallback) {
+        if (!('speechSynthesis' in window)) {
+            if (onEndCallback) onEndCallback();
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'ko-KR';
+        msg.rate = 1.0;
+        msg.volume = Number(ttsVolume);
+        currentUtterance = msg;
+        msg.onend = function() {
+            if (currentUtterance === msg) currentUtterance = null;
+            if (onEndCallback) onEndCallback();
+        };
+        msg.onerror = function() {
+            if (currentUtterance === msg) currentUtterance = null;
+            if (onEndCallback) onEndCallback();
+        };
+        window.speechSynthesis.speak(msg);
+    }
+
+    function showIntroScreen(eye) {
+        introContainer.style.display = 'flex';
+        testContainer.style.display = 'none';
+        resultDiv.style.display = 'none';
+        
+        const title = document.getElementById('intro-title');
+        const desc = document.getElementById('intro-desc');
+        const eyeL = document.getElementById('eye-left');
+        const eyeR = document.getElementById('eye-right');
+
+        if (eye === 'left') {
+            title.innerText = "1단계: 좌안 (왼쪽 눈) 검사";
+            desc.innerHTML = "오른쪽 눈을 가리개(또는 손)로 가려주세요.";
+            eyeL.className = "eye blink";
+            eyeR.className = "eye covered";
+            speak("왼쪽 눈 검사를 시작합니다. 오른쪽 눈을 가려주세요. 안내에 따라 숫자는 오번처럼 끝에 번을 붙여주시고, 동그란 기호는 뚫린 방향을 말씀해주세요. 준비가 되시면 진행하기 버튼을 눌러주세요.");
+        } else {
+            title.innerText = "2단계: 우안 (오른쪽 눈) 검사";
+            desc.innerHTML = "이제 반대로 왼쪽 눈을 가려주세요.";
+            eyeL.className = "eye covered";
+            eyeR.className = "eye blink";
+            speak(`왼쪽 눈 검사가 종료되었습니다. 바로 이어서 오른쪽 눈 검사를 진행합니다. 왼쪽 눈을 가려주시고, 준비가 되시면 진행하기 버튼을 눌러주세요.`);
+        }
+    }
+
+    function startEyeTest() {
+        window.speechSynthesis.cancel();
+        introContainer.style.display = 'none';
+        testContainer.style.display = 'flex';
+        
+        currentStageIndex = START_INDEX;
+        correctCount = 0; failCount = 0;
+        isFirstStage = true; direction = 0; isFinished = false; isPaused = false;
+        
+        document.getElementById('stt-feedback').innerHTML = `화면에 보이는 기호를 <b style="color:#3b82f6;">음성</b>으로 말씀해 주세요<br><span style="font-size: 0.95rem; color: #ffeb3b; line-height: 1.5; display: inline-block; margin-top: 15px;">▶ 숫자는 <b>"~번"</b> (예: "5번")<br>▶ C기호는 <b>뚫린 방향</b> (예: "오른쪽")</span>`;
+        renderSymbol();
+        speak("숫자는 끝에 번을 붙여서, 기호는 뚫린 방향을 말씀해주세요.");
+    }
+
+    function generateSymbol() {
+        const allOptions = [
+            { type: 'number', value: '2' }, { type: 'number', value: '3' },
+            { type: 'number', value: '4' }, { type: 'number', value: '5' },
+            { type: 'number', value: '6' }, { type: 'number', value: '7' },
+            { type: 'direction', value: 0 },  
+            { type: 'direction', value: 90 }, 
+            { type: 'direction', value: 180 },
+            { type: 'direction', value: 270 } 
+        ];
+
+        let availableOptions = allOptions;
+        if (lastSymbol) {
+            availableOptions = allOptions.filter(
+                option => !(option.type === lastSymbol.type && option.value === lastSymbol.value)
+            );
+        }
+        const randomIndex = Math.floor(Math.random() * availableOptions.length);
+        return availableOptions[randomIndex];
+    }
+
+    function renderSymbol() {
+        consecutiveRetries = 0; // 다음 기호(단계)로 넘어가면 리셋
+        lastSymbol = generateSymbol();
+        symbolDiv.style.fontSize = fontSizes[currentStageIndex] + 'rem';
+
+        if (lastSymbol.type === 'number') {
+            symbolDiv.innerHTML = lastSymbol.value;
+            symbolDiv.style.transform = 'rotate(0deg)';
+        } else {
+            const uniqueId = Date.now() + Math.floor(Math.random() * 1000);
+            symbolDiv.innerHTML = `<svg viewBox="0 0 100 100" style="width:1em; height:1em; display:block;">
+                <mask id="gap-mask-${uniqueId}">
+                    <rect x="0" y="0" width="100" height="100" fill="white" />
+                    <rect x="50" y="40" width="50" height="20" fill="black" />
+                </mask>
+                <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="20" mask="url(#gap-mask-${uniqueId})" />
+            </svg>`;
+            symbolDiv.style.transform = `rotate(${lastSymbol.value}deg)`;
+        }
+        updatePresenterInfo();
+    }
+
+    function handleRight() {
+        if (isFinished || isPaused) return;
+        correctCount++;
+        checkStageEnd();
+    }
+
+    function handleWrong() {
+        if (isFinished || isPaused) return;
+        failCount++;
+        checkStageEnd();
+    }
+
+    function checkStageEnd() {
+        if (correctCount >= 2) {
+            processStageResult(true);
+        } else if (failCount >= 2) {
+            processStageResult(false);
+        } else {
+            renderSymbol();
+        }
+    }
+
+    function processStageResult(passed) {
+        if (isFirstStage) {
+            if (passed) {
+                if (currentStageIndex >= acuityLevels.length - 1) {
+                    endTest(acuityLevels[currentStageIndex] + (failCount > 0 ? "-" + failCount : ""));
+                    return;
+                }
+                direction = 1; 
+                currentStageIndex++;
+            } else {
+                if (currentStageIndex <= 0) {
+                    endTest("0.1 미만");
+                    return;
+                }
+                direction = -1; 
+                currentStageIndex--;
+            }
+            isFirstStage = false;
+        } else {
+            if (direction === 1) { 
+                if (passed) {
+                    if (currentStageIndex >= acuityLevels.length - 1) {
+                        endTest(acuityLevels[currentStageIndex] + (failCount > 0 ? "-" + failCount : ""));
+                        return;
+                    }
+                    currentStageIndex++;
+                } else { 
+                    endTest(acuityLevels[currentStageIndex - 1] + (correctCount > 0 ? "+" + correctCount : ""));
+                    return;
+                }
+            } else { 
+                if (passed) { 
+                    endTest(acuityLevels[currentStageIndex] + (failCount > 0 ? "-" + failCount : ""));
+                    return;
+                } else {
+                    if (currentStageIndex <= 0) {
+                        endTest("0.1 미만");
+                        return;
+                    }
+                    currentStageIndex--;
+                }
+            }
+        }
+        correctCount = 0;
+        failCount = 0;
+        renderSymbol();
+    }
+
+    function endTest(acuity) {
+        const finalAcuityText = acuity.toString();
+
+        if (currentEye === 'left') {
+            leftAcuityResult = finalAcuityText;
+            currentEye = 'right';
+            showIntroScreen('right'); 
+        } else {
+            rightAcuityResult = finalAcuityText;
+            isFinished = true;
+            
+            testContainer.style.display = 'none';
+            resultDiv.style.display = 'flex';
+            
+            document.getElementById('result-left').innerText = leftAcuityResult;
+            document.getElementById('result-right').innerText = rightAcuityResult;
+
+            speak(`모든 검사가 완료되었습니다. 수고하셨습니다. 측정 결과, 왼쪽 눈 시력은 ${leftAcuityResult.replace(/[-+]/g, '')}, 오른쪽 눈 시력은 ${rightAcuityResult.replace(/[-+]/g, '')} 입니다.`);
+        }
+    }
+
+    function updatePresenterInfo() {
+        infoStage.innerText = acuityLevels[currentStageIndex];
+        infoCorrects.innerText = correctCount;
+        infoFails.innerText = failCount;
+        
+        // 추가된 진행 현황 UI 업데이트
+        const progressEye = document.getElementById('progress-eye');
+        if (progressEye) {
+            progressEye.innerText = currentEye === 'left' ? '좌안' : '우안';
+        }
+        const progressStage = document.getElementById('progress-stage');
+        if (progressStage) {
+            progressStage.innerText = acuityLevels[currentStageIndex];
+        }
+    }
+
+    /* ------------------------------------------------
+       STT (음성 인식) 및 FastAPI 연동 로직
+    ------------------------------------------------ */
+    const sttBtn = document.getElementById('stt-btn');
+    const sttStatus = document.getElementById('stt-status');
+    const sttFeedback = document.getElementById('stt-feedback');
+    
+    let recognition = null;
+    function handleSTTRetry(message) {
+        consecutiveRetries++;
+        console.log('재시도 연속 횟수:', consecutiveRetries);
+        if (consecutiveRetries % 3 === 0) {
+            speak("안내해 드립니다. 화면에 표시된 기호가 숫자라면 5번처럼 숫자 뒤에 번을 붙여주시고, 동그라미 기호라면 오른쪽, 위쪽 등 뚫린 방향을 말씀해주세요.");
+        }
+        // 1, 2회째 실패 시에는 기분 상하시지 않도록 "잘 못 들었습니다" 등의 에러 안내 음성을 생략함
+    }
+
+    let hasRecognizedSpeech = false;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ko-KR';
+        recognition.continuous = true; // 매번 누르지 않도록 연속 모드 활성화 
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function() {
+            isListening = true;
+            hasRecognizedSpeech = false;
+            sttBtn.style.backgroundColor = '#ef4444';
+            sttBtn.innerText = '🎙️ 듣는 중...';
+            sttStatus.innerText = '말씀해 주세요...';
+        };
+
+        recognition.onresult = function(event) {
+            hasRecognizedSpeech = true;
+            // 연속 모드에서는 가장 마지막 결과를 사용합니다.
+            const lastIndex = event.results.length - 1;
+            const transcript = event.results[lastIndex][0].transcript.trim();
+            if (!transcript) return;
+            
+            sttStatus.innerText = `인식됨: "${transcript}"`;
+            evaluateAnswerWithAI(transcript);
+        };
+
+        recognition.onerror = function(event) {
+            isListening = false;
+            if (isPaused || isFinished) {
+                resetSTTButton();
+                sttStatus.innerText = '일시정지됨';
+                return;
+            }
+            if (event.error === 'not-allowed') {
+                isPaused = true;
+                sttStatus.innerText = '마이크 권한이 거부되었습니다.';
+                return;
+            }
+            hasRecognizedSpeech = true;
+            sttStatus.innerText = '음성 인식 실패. 다시 시도해주세요.';
+            resetSTTButton();
+            // 에러 종류 상관없이 마이크 눌렀는데 판단 못 갔다면 무조건 실패 카운트 증가
+            handleSTTRetry("잘 못 들었습니다. 다시 한 번 크게 말씀해주세요.");
+        };
+
+        recognition.onnomatch = function(event) {
+            isListening = false;
+            if (isPaused || isFinished) {
+                resetSTTButton();
+                sttStatus.innerText = '일시정지됨';
+                return;
+            }
+            hasRecognizedSpeech = true;
+            sttStatus.innerText = '인식된 음성이 없습니다.';
+            resetSTTButton();
+            handleSTTRetry("잘 못 들었습니다. 다시 한 번 크게 말씀해주세요.");
+        };
+
+        recognition.onend = function() {
+            isListening = false;
+            resetSTTButton();
+            if (isPaused || isFinished) {
+                sttStatus.innerText = isFinished ? '검사 종료' : '일시정지됨';
+                return;
+            }
+            // Web Speech API가 사용자의 말이 너무 짧거나 기침 소리 등으로 판단하여
+            // result나 error 없이 조용히 종료해버린 경우의 예외 처리
+            if (!hasRecognizedSpeech && consecutiveRetries === 0) {
+                sttStatus.innerText = '음성이 감지되지 않았거나 무시되었습니다.';
+            }
+            
+            // 한 번만 누르면 다시 안 눌러도 되도록 마이크 자동 재시작
+            setTimeout(() => {
+                if (!isPaused && !isFinished && !isListening) {
+                    startSTT();
+                }
+            }, 500);
+        };
+    } else {
+        sttStatus.innerText = '지원하지 않는 브라우저입니다. Chrome을 사용해주세요.';
+        sttBtn.style.display = 'none';
+    }
+
+    function startSTT() {
+        if (isFinished || isPaused) return;
+        window.speechSynthesis.cancel();
+        if (recognition && !isListening) {
+            try {
+                recognition.start();
+            } catch (error) {
+                console.warn(error);
+                sttStatus.innerText = '이미 음성 인식 중입니다.';
+            }
+        }
+    }
+
+    function resetSTTButton() {
+        sttBtn.style.backgroundColor = '#3b82f6';
+        sttBtn.innerText = '🎤 마이크로 말하기';
+    }
+
+    async function evaluateAnswerWithAI(userSpoken) {
+        if (!lastSymbol) return;
+        sttStatus.innerText += ' (AI 판별 중...)';
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/evaluate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    expected_type: lastSymbol.type,
+                    expected_value: lastSymbol.value.toString(),
+                    user_spoken: userSpoken
+                })
+            });
+
+            if (!response.ok) throw new Error('API 오류');
+
+            const data = await response.json();
+            if (isPaused) return;
+            
+            sttFeedback.innerText = data.message;
+            sttFeedback.style.color = data.result === 'pass' ? '#10b981' : (data.result === 'fail' ? '#ef4444' : '#f59e0b');
+            
+            if (data.result === 'pass') {
+                consecutiveRetries = 0;
+                handleRight();
+            } else if (data.result === 'fail') {
+                consecutiveRetries = 0;
+                handleWrong();
+            } else {
+                handleSTTRetry(data.message);
+            }
+        } catch (error) {
+            console.error(error);
+            sttStatus.innerText = 'API 서버 연동 오류';
+            handleSTTRetry("일시적인 오류가 발생했습니다. 다시 시도해 주세요.");
+        }
+    }
+
+
+
+    /* ------------------------------------------------
+       Arduino BLE 버튼 연동 로직
+       button_test.html의 UUID와 버튼 ID 매핑을 site.html에 통합
+    ------------------------------------------------ */
+    const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    const BUTTON_CHAR_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+
+    // button_test.html 기준 Arduino 버튼 ID:
+    // 1 = YELLOW = 시작, 2 = RED = 음량 크게, 3 = BLUE = 음량 작게,
+    // 4 = GREEN = 정지, 5 = WHITE = 직원 호출
+    const BUTTON_ACTION_BY_ID = {
+        1: 'start',
+        2: 'volume_up',
+        3: 'volume_down',
+        4: 'stop',
+        5: 'staff_call'
+    };
+
+    connectArduinoBtn.addEventListener('click', connectArduino);
+    Object.keys(hwButtons).forEach((id) => {
+        hwButtons[id].addEventListener('click', () => handleHardwareButton(Number(id)));
+    });
+
+    async function connectArduino() {
+        try {
+            if (!navigator.bluetooth) {
+                arduinoStatus.innerText = 'Chrome/Edge에서 Web Bluetooth가 필요합니다.';
+                return;
+            }
+
+            arduinoStatus.innerText = 'Arduino 검색 중...';
+            const device = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: [SERVICE_UUID]
+            });
+
+            device.addEventListener('gattserverdisconnected', () => {
+                arduinoStatus.innerText = 'Arduino 연결 끊김';
+                connectArduinoBtn.innerText = 'Arduino 재연결';
+            });
+
+            arduinoStatus.innerText = 'Arduino 연결 중...';
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            const characteristic = await service.getCharacteristic(BUTTON_CHAR_UUID);
+
+            await characteristic.startNotifications();
+            characteristic.addEventListener('characteristicvaluechanged', handleButtonValue);
+
+            arduinoStatus.innerText = 'Arduino 연결됨';
+            connectArduinoBtn.innerText = '연결 완료';
+            connectArduinoBtn.disabled = true;
+        } catch (error) {
+            console.error(error);
+            arduinoStatus.innerText = '연결 실패: ' + error.message;
+        }
+    }
+
+    function handleButtonValue(event) {
+        const value = event.target.value;
+        const buttonId = value.getUint8(0);
+
+        if (buttonId === 0) {
+            clearActiveHardwareButtons();
+            buttonStatus.innerText = '버튼 대기 중';
+            return;
+        }
+
+        handleHardwareButton(buttonId);
+    }
+
+    function handleHardwareButton(buttonId) {
+        const action = BUTTON_ACTION_BY_ID[buttonId];
+        if (!action) return;
+
+        clearActiveHardwareButtons();
+        if (hwButtons[buttonId]) hwButtons[buttonId].classList.add('active');
+
+        const actionName = {
+            start: '시작/마이크',
+            volume_up: '음량 크게',
+            volume_down: '음량 작게',
+            stop: '정지',
+            staff_call: '직원 호출'
+        }[action];
+        buttonStatus.innerText = `버튼 ${buttonId}: ${actionName}`;
+
+        if (action === 'start') {
+            handleStartButton();
+        } else if (action === 'volume_up') {
+            changeTTSVolume(0.1);
+        } else if (action === 'volume_down') {
+            changeTTSVolume(-0.1);
+        } else if (action === 'stop') {
+            stopCurrentInteraction();
+        } else if (action === 'staff_call') {
+            callStaff();
+        }
+    }
+
+    async function handleStartButton() {
+        await initAudioOnce();
+        if (isFinished) {
+            location.reload();
+            return;
+        }
+
+        const introVisible = introContainer.style.display !== 'none';
+        const testVisible = testContainer.style.display !== 'none';
+
+        if (introVisible) {
+            startEyeTest();
+            return;
+        }
+
+        if (testVisible) {
+            if (isPaused) {
+                isPaused = false;
+                hasRecognizedSpeech = true;
+                buttonStatus.innerText = '재개됨';
+                sttStatus.innerText = '재개됨';
+                sttFeedback.style.color = '#10b981';
+                sttFeedback.innerText = '검사가 재개되었습니다. 안내 후 답변을 말씀해 주세요.';
+                speak('검사가 재개되었습니다. 화면에 보이는 기호를 말씀해 주세요.', () => {
+                    if (!isPaused && !isFinished) startSTT();
+                });
+                return;
+            }
+            startSTT();
+        }
+    }
+
+    function stopCurrentInteraction() {
+        if (isFinished) return;
+        isPaused = true;
+        hasRecognizedSpeech = true;
+        window.speechSynthesis.cancel();
+        if (recognition && isListening) {
+            try { recognition.abort(); } catch (error) { console.warn(error); }
+        }
+        resetSTTButton();
+        buttonStatus.innerText = '일시정지됨';
+        sttStatus.innerText = '일시정지됨';
+        sttFeedback.style.color = '#f59e0b';
+        sttFeedback.innerText = '일시정지됨. 시작 버튼을 누르면 이어서 진행합니다.';
+    }
+
+    function callStaff() {
+        staffCallBanner.style.display = 'block';
+        buttonStatus.innerText = '직원 호출됨';
+        speak('직원을 호출했습니다. 잠시만 기다려 주세요.');
+        setTimeout(() => {
+            staffCallBanner.style.display = 'none';
+        }, 4000);
+    }
+
+    function changeTTSVolume(delta) {
+        ttsVolume = Math.max(0, Math.min(1, Math.round((ttsVolume + delta) * 10) / 10));
+        const volumePercent = Math.round(ttsVolume * 100);
+        volumeStatus.innerText = `음량 ${volumePercent}%`;
+        buttonStatus.innerText = `음량 ${volumePercent}%`;
+        if (gainNode && audioContext) {
+            gainNode.gain.setValueAtTime(ttsVolume, audioContext.currentTime);
+        }
+        playBeep();
+
+        // 현재 재생 중인 안내 음성의 중간 음량은 브라우저가 직접 바꿀 수 없으므로,
+        // 즉시 체감되도록 새 음량으로 짧은 안내를 다시 재생한다.
+        if (ttsVolume > 0) {
+            speak(`음량 ${volumePercent}퍼센트입니다.`);
+        } else {
+            window.speechSynthesis.cancel();
+        }
+    }
+
+    async function initAudioOnce() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioContext.createGain();
+            gainNode.gain.value = ttsVolume;
+            gainNode.connect(audioContext.destination);
+        }
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+    }
+
+    async function playBeep() {
+        try {
+            await initAudioOnce();
+            const osc = audioContext.createOscillator();
+            const beepGain = audioContext.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            beepGain.gain.value = ttsVolume;
+            osc.connect(beepGain);
+            beepGain.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.12);
+        } catch (error) {
+            console.warn(error);
+        }
+    }
+
+    function clearActiveHardwareButtons() {
+        Object.values(hwButtons).forEach((btn) => btn.classList.remove('active'));
+    }
+
+
+    // 디버그 보조 (키보드 지원)
+    window.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'y') handleRight();
+        else if (e.key.toLowerCase() === 'n') handleWrong();
+    });
+
+    window.onload = () => showIntroScreen('left');
+</script>
+</body>
+</html>
